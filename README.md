@@ -56,3 +56,7 @@ For the debug build, it's a good idea to enter the container with a bash session
 1. Create an API Gateway with a route triggering the Lambda
 1. Send https requests to the endpoint with a form-data body holding a `pkx` key with a base 64 encoded pkx
    - The result will be an JSON with a `pkx` and `signature` properties. `pkx` has all the properties PKHeX.Core would have as well as an `IsLegal` property
+
+## Credits
+
+Thanks to Kaphotics and everyone else who has contributed to PKHeX
