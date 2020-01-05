@@ -19,6 +19,7 @@ using PKHeX.Core;
 
 namespace PKHeXLambda
 {
+    public delegate JObject ConvertPKXToJSON(string base64PKX);
     public class Functions
     {
         /// <summary>
@@ -37,13 +38,25 @@ namespace PKHeXLambda
             byte[] data = System.Convert.FromBase64String(base64PKX);
             var pkx = PKMConverter.GetPKMfromBytes(data) ?? new PK8();
             var legalityAnalysis = new LegalityAnalysis(pkx);
-            var jPKX = (JObject)JToken.FromObject(pkx);
-            var json = new JObject();
             bool isLegal = legalityAnalysis.Report(false) == "Legal!";
+            var jPKX = (JObject)JToken.FromObject(pkx);
 
             jPKX.Add("IsLegal", isLegal);
-            json.Add("pkx", jPKX);
-            json.Add("signature", SignData(jPKX.ToString(Formatting.None)));
+
+            return jPKX;
+        }
+
+        /// <summary>
+        /// Creates a signed JSON from a base 64 encoded PKX
+        /// </summary>
+        static private JObject ConvertBase64PKXToSignedJSON(string base64PKX) {
+            var jPKX = ConvertBase64PKXToJSON(base64PKX);
+
+            var jPKXString = jPKX.ToString(Formatting.None);
+            var json = new JObject();
+
+            json.Add("pkx", jPKXString);
+            json.Add("signature", SignData(jPKXString));
 
             return json;
         }
@@ -74,9 +87,9 @@ namespace PKHeXLambda
 
 
         /// <summary>
-        /// A Lambda function to respond to HTTP methods from API Gateway
+        /// Lambda function to respond to HTTP methods from API Gateway
         /// </summary>
-        public APIGatewayProxyResponse ConvertPKXWithLambda(APIGatewayProxyRequest request, ILambdaContext context)
+        static private APIGatewayProxyResponse ConvertPKXAsLambda(APIGatewayProxyRequest request, ILambdaContext context, ConvertPKXToJSON ConvertPKX)
         {
             var response = new APIGatewayProxyResponse
             {
@@ -93,12 +106,26 @@ namespace PKHeXLambda
 
             if (String.IsNullOrEmpty(base64PKX)) return response;
 
-            var json = ConvertBase64PKXToJSON(base64PKX);
+            var json = ConvertPKX(base64PKX);
 
             response.Body = json.ToString();
             response.StatusCode = (int)HttpStatusCode.OK;
 
             return response;
+        }
+
+        /// <summary>
+        /// Lambda function to respond to HTTP methods from API Gateway with a PKX
+        /// </summary>
+        public APIGatewayProxyResponse ParsePKX(APIGatewayProxyRequest request, ILambdaContext context) {
+            return ConvertPKXAsLambda(request, context, ConvertBase64PKXToJSON);
+        }
+
+        /// <summary>
+        /// Lambda function to respond to HTTP methods from API Gateway with a signed PKX
+        /// </summary>
+        public APIGatewayProxyResponse ParseAndSignPKX(APIGatewayProxyRequest request, ILambdaContext context) {
+            return ConvertPKXAsLambda(request, context, ConvertBase64PKXToSignedJSON);
         }
     }
 }
